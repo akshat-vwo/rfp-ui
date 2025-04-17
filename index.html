@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFP Assistant Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .chat-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;
+        }
+        .input-container {
+            display: flex;
+        }
+        #question-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .auth-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff8e1;
+            border-radius: 5px;
+            border: 1px solid #ffe082;
+        }
+        #token-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RFP Assistant Chat</h1>
+    
+    <div class="auth-section">
+        <h3>Authentication</h3>
+        <p>Enter your authentication token below:</p>
+        <input type="password" id="token-input" placeholder="Paste your authentication token here">
+        <p><small>Note: For security reasons, never expose your service account credentials in client-side code.</small></p>
+    </div>
+    
+    <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+            <div class="message assistant-message">
+                Hello! I'm your RFP Assistant. Ask me a question.
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="question-input" placeholder="Type your question here...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const CLOUD_FUNCTION_URL = 'https://us-central1-wingify-k8s-test.cloudfunctions.net/rfp-agent';
+        const messageContainer = document.getElementById('chat-messages');
+        const questionInput = document.getElementById('question-input');
+        const sendButton = document.getElementById('send-button');
+        const tokenInput = document.getElementById('token-input');
+        
+        // Send message when button is clicked
+        sendButton.addEventListener('click', sendMessage);
+        
+        // Send message when Enter key is pressed
+        questionInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        function sendMessage() {
+            const question = questionInput.value.trim();
+            const token = tokenInput.value.trim();
+            
+            if (!question) return;
+            if (!token) {
+                alert('Please enter an authentication token');
+                return;
+            }
+            
+            // Add user message to chat
+            addMessage(question, 'user');
+            
+            // Clear input field
+            questionInput.value = '';
+            
+            // Show loading indicator
+            const loadingId = addMessage('Thinking...', 'assistant');
+            
+            // Call API
+            callApi(question, token)
+                .then(response => {
+                    // Remove loading message and add actual response
+                    messageContainer.removeChild(document.getElementById(loadingId));
+                    addMessage(response, 'assistant');
+                })
+                .catch(error => {
+                    messageContainer.removeChild(document.getElementById(loadingId));
+                    addMessage(`Error: ${error.message}`, 'assistant');
+                });
+        }
+        
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            const messageId = 'msg-' + Date.now();
+            messageDiv.id = messageId;
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = text;
+            messageContainer.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+            
+            return messageId;
+        }
+        
+        async function callApi(question, token) {
+            try {
+                const response = await fetch(CLOUD_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ question: question })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                return await response.text();
+            } catch (error) {
+                console.error('API call failed:', error);
+                throw error;
+            }
+        }
+    </script>
+</body>
+</html> 
